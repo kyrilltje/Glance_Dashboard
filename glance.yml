@@ -1,0 +1,39 @@
+# =======================
+# AUTHENTICATION SETTINGS
+# =======================
+
+# https://github.com/glanceapp/glance/blob/main/docs/configuration.md#authentication
+auth:
+  secret-key: # this must be set to a random value generated using the secret:make CLI command
+  users:
+    User:
+      password-hash: #passwordhash
+
+# =======================
+# BRANDING SETTINGS
+# =======================
+
+# https://github.com/glanceapp/glance/blob/main/docs/configuration.md#branding
+branding:
+  hide-footer: true
+
+# =======================
+# THEME SETTINGS
+# =======================
+
+# https://github.com/glanceapp/glance/blob/main/docs/configuration.md#the-config-file
+theme:
+  $include: theme.yml
+
+
+# =======================
+# PAGES
+# =======================
+
+# https://github.com/glanceapp/glance/blob/main/docs/configuration.md#the-config-file
+
+pages:
+  - $include: home.yml
+  - $include: hosting.yml
+  - $include: games.yml
+  - $include: sports.yml

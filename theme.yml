@@ -1,0 +1,8 @@
+  # Default theme (neutral, readable)
+  background-color: "hsl(50,1%,6%)"   # almost black with a faint yellow tint
+  primary-color: "hsl(300,100%,50%)"  # bright, vivid magenta/purple
+  positive-color: "hsl(165,70%,50%)"  # medium green
+  negative-color: "hsl(0,75%,55%)"    # clear red
+  contrast-multiplier: 1.5
+  text-saturation-multiplier: 2.5
+  disable-picker: true 

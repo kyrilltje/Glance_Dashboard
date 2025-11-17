@@ -1,0 +1,335 @@
+
+  # =======================
+  # HOME PAGE
+  # =======================
+  - name: Home
+
+    #  https://github.com/glanceapp/glance/blob/main/docs/configuration.md#pages--columns
+    head-widgets:
+
+      # https://github.com/glanceapp/glance/blob/main/docs/configuration.md#markets
+          - type: markets
+            markets:
+              - symbol: SPY
+                name: S&P 500
+              - symbol: BTC-USD
+                name: Bitcoin
+                chart-link: https://www.tradingview.com/chart/?symbol=INDEX:BTCUSD
+              - symbol: NVDA
+                name: NVIDIA
+              - symbol: AAPL
+                symbol-link: https://www.google.com/search?tbm=nws&q=apple
+                name: Apple         
+
+
+    columns:
+
+      # -----------------------
+      # SMALL COLUMN
+      # -----------------------
+      - size: small
+        widgets:
+
+          # https://github.com/glanceapp/glance/blob/main/docs/configuration.md#clock
+          - type: clock
+            hour-format: 24h
+            timezones:
+              - timezone: Europe/Paris
+                label: Paris
+              - timezone: America/New_York
+                label: New York
+              - timezone: Asia/Tokyo
+                label: Tokyo
+
+            # https://github.com/glanceapp/community-widgets/blob/main/widgets/time-bar/README.md
+          - type: group
+            widgets:
+              - type: custom-api
+                title: Day
+                body-type: string
+                skip-json-validation: true
+                cache: 1s
+                template: |
+                  {{ $localTime := now }}
+                  {{ $secondsPerDay := 86400 }}
+                  {{ $elapsedSeconds := add (mul $localTime.Hour 3600) (mul $localTime.Minute 60) | add $localTime.Second }}
+                  {{ $dayProgress := div (mul $elapsedSeconds 100.0) $secondsPerDay }}
+
+                  {{ $gradient := "" }}
+                  {{ if lt $dayProgress 10.0 }}
+                    {{ $gradient = "#70a1ff" }}
+                  {{ else if lt $dayProgress 25.0 }}
+                    {{ $gradient = "#ff6b6b, #70a1ff" }}
+                  {{ else if lt $dayProgress 50.0 }}
+                    {{ $gradient = "#ff6b6b, #f8e71c, #7ed6df" }}
+                  {{ else }}
+                    {{ $gradient = "#ff6b6b, #f8e71c, #7ed6df, #70a1ff" }}
+                  {{ end }}
+
+                  <div style="font-family: sans-serif; text-align: center;">
+                    <div style="width: 100%; height: 12px; background: #23262F; border:1px solid gray; border-radius: 10px; overflow: hidden;">
+                      <div style="
+                        height: 100%;
+                        width: {{ $dayProgress }}%;
+                        background: linear-gradient(90deg, {{ $gradient }});
+                      "></div>
+                    </div>
+                    <div class="size-h1" style="margin-top: 6px;">{{ printf "%.2f" $dayProgress }}% of the day has passed</div>
+                  </div>           
+
+          # https://github.com/glanceapp/glance/blob/main/docs/configuration.md#calendar
+          - type: calendar
+            hide-header: true
+            first-day-of-week: monday
+
+
+      # -----------------------
+      # FULL COLUMN
+      # -----------------------
+      - size: full
+        widgets:
+
+          # https://github.com/glanceapp/glance/blob/main/docs/configuration.md#search-widget
+          - type: search
+            hide-header: true
+            search-engine: google
+            new-tab: true
+            bangs:
+              - title: YouTube
+                shortcut: "!yt"
+                url: https://www.youtube.com/results?search_query={QUERY}
+              - title: Steam
+                shortcut: "steam"  
+                url: https://store.steampowered.com/search/?term={QUERY}
+
+
+
+
+          # https://github.com/glanceapp/glance/blob/main/docs/configuration.md#rss
+          
+          - type: group
+            widgets:
+              - type: rss
+                title: Bloomberg
+                limit: 15
+                collapse-after: 6
+                cache: 6h
+                feeds:
+                  - url: https://feeds.bloomberg.com/markets/news.rss
+                    title: Bloomberg
+
+              - type: rss
+                title: Fox Business
+                limit: 15
+                collapse-after: 6
+                cache: 6h
+                feeds:
+                  - url: https://moxie.foxbusiness.com/google-publisher/markets.xml
+                    title: Fox Business
+
+
+          # https://github.com/glanceapp/community-widgets/blob/main/widgets/google-calendar-list/README.md
+
+          - type: custom-api
+            title: Upcoming Google Calendar Events
+            cache: 15m
+            template: |
+              {{
+                $token := newRequest "https://oauth2.googleapis.com/token"
+                  | withHeader "Content-Type" "application/x-www-form-urlencoded"
+                  | withStringBody "client_id=${GOOGLE_CLIENT_ID}&client_secret=${GOOGLE_CLIENT_SECRET}&refresh_token=${GOOGLE_REFRESH_TOKEN}&grant_type=refresh_token"
+                  | getResponse
+              }}
+
+              {{ if ne $token.Response.StatusCode 200 }}
+                <p>Failed to get token: {{ $token.Response.Status }}</p>
+              {{ else }}
+                {{ $accessToken := $token.JSON.String "access_token" }}
+                {{ $nowtime := now | formatTime "rfc3339" }}
+                {{ $future := offsetNow "720h" | formatTime "rfc3339" }}
+                {{
+                  $events := newRequest "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+                    | withParameter "timeMin" $nowtime
+                    | withParameter "timeMax" $future
+                    | withParameter "singleEvents" "true"
+                    | withParameter "orderBy" "startTime"
+                    | withHeader "Authorization" (print "Bearer " $accessToken)
+                    | getResponse
+                }}
+
+                {{ if ne $events.Response.StatusCode 200 }}
+                  <p>Failed to fetch events: {{ $events.Response.Status }}</p>
+                {{ else }}
+                  <div>
+                    {{ range $events.JSON.Array "items" }}
+                    {{ $start := .String "start.dateTime" }}
+                    {{ $end := .String "end.dateTime" }}
+                    {{ $isAllDay := eq $start "" }}
+                    {{ if $isAllDay }}
+                      {{ $start = print (.String "start.date") | parseLocalTime "DateOnly" }}
+                      {{ $end = print (.String "end.date") | parseLocalTime "DateOnly" }}
+                    {{ else }}
+                      {{ $start = $start | parseTime "rfc3339" }}
+                      {{ $end = $end | parseTime "rfc3339" }}            
+                    {{ end }}
+                    {{ $startDateOnly := $start | formatTime "DateOnly" }}
+                    {{ $endDateOnly := $end | formatTime "DateOnly" }}
+                    {{ $isStartAndEndDateSame := eq $startDateOnly $endDateOnly }}
+
+                    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start;">
+                      <a href="https://calendar.google.com/calendar/u/0" target="_blank" class="size-h1" style="text-align: left; width: 215px;">
+                        {{ .String "summary" }}
+                      </a>
+                      <a href="https://calendar.google.com/calendar/u/0" target="_blank" class="size-h3" style="text-align: left;">
+                        {{ $start | formatTime "Mon, Jan 2 · 3:04 PM" }} 
+                        {{ if $isStartAndEndDateSame }}
+                            - {{ $end | formatTime "3:04 PM" }}
+                          {{ else }}
+                            - {{ $end | formatTime "Mon, Jan 2 · 3:04 PM" }}
+                        {{ end }}
+                      </a>
+                      <div class="color-primary size-h3" style="text-align: right; width: 75px;" {{ $start | toRelativeTime }}>
+                      </div>
+                    </div>
+                  {{ end }}
+                  </div>
+                {{ end }}
+              {{ end }}
+
+      # -----------------------
+      # SMALL COLUMN
+      # -----------------------
+      - size: small
+        widgets:
+
+          # https://github.com/glanceapp/glance/blob/main/docs/configuration.md#weather
+          - type: weather
+            units: metric
+            hour-format: 12h
+            location: London, United Kingdom
+
+          # https://github.com/glanceapp/community-widgets/blob/main/widgets/nearby-aircraft/README.md
+          - type: custom-api
+            title: Nearby Aircraft
+            cache: 1m
+            url: https://opensky-network.org/api/states/all?lamin=${MY_LAT_MIN}&lomin=${MY_LON_MIN}&lamax=${MY_LAT_MAX}&lomax=${MY_LON_MAX}
+            template: |
+              <div class="opensky-aircraft-stats">
+                {{ $states := .JSON.Array "states" }}
+                {{ $statesCount := len $states }}
+
+                <div class="margin-block-2">
+                  <div class="size-h6">AIRCRAFT NEARBY: {{ $statesCount }} </div>
+                </div>
+
+                {{ if gt $statesCount 0 }}
+                  {{ $plane := index $states 0 }}
+                  {{ $callsign := $plane.String "1" }}
+                  {{ $icao24 := $plane.String "0" }}
+                  {{ $origin := $plane.String "2" }}
+                  {{ $onGround := $plane.Bool "8" }}
+
+                  <div class="margin-block-2">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                      <div>
+                        <div class="color-highlight size-h3">{{ if ne $callsign "" }}{{ $callsign }}{{ else }}{{ $icao24 }}{{ end }}</div>
+                        <div class="size-h6">CALLSIGN</div>
+                      </div>
+                      <div>
+                        <div class="color-highlight size-h3 text-truncate" style="max-width: 100%;">{{ if ne $origin "" }}{{ $origin }}{{ else }}-{{ end }}</div>
+                        <div class="size-h6">ORIGIN</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="margin-block-2">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                      <div>
+                        {{ $altitude := $plane.Float "7" }}
+                        <div class="color-highlight size-h3">{{ if and (not $onGround) ($altitude | ne 0.0) }}{{ $altitude | printf "%.0f" }}m{{ else }}-{{ end }}</div>
+                        <div class="size-h6">ALTITUDE</div>
+                      </div>
+                      <div>
+                        {{ $speed := $plane.Float "9" }}
+                        <div class="color-highlight size-h3">{{ if and (not $onGround) ($speed | ne 0.0) }}{{ $speed | printf "%.0f" }}m/s{{ else }}-{{ end }}</div>
+                        <div class="size-h6">SPEED</div>
+                      </div>
+                    </div>
+                  </div>
+                {{ end }}
+              </div>
+
+          # https://github.com/glanceapp/community-widgets/blob/main/widgets/random-fact/README.md
+          - type: custom-api
+            hide-header: true
+            title: Random Fact
+            cache: 3h
+            url: https://uselessfacts.jsph.pl/api/v2/facts/random
+            template: |
+              <p class="size-h4 color-paragraph">{{ .JSON.String "text" }}</p>
+
+
+          # https://github.com/glanceapp/community-widgets/blob/main/widgets/should-i-deploy-today/README.md
+          - type: custom-api
+            hide-header: true
+            title: Should I deploy today
+            # cache: 1h
+            url: https://shouldideploy.today/api?tz=Europe%2FAmsterdam
+            method: GET
+            template: |
+              <div class="deploy-card {{ if .JSON.Bool "shouldideploy" }}deploy-yes{{ else }}deploy-no{{ end }}">
+                <style>
+                  .deploy-card {
+                    width: 100%;
+                    max-width: unset;
+                    margin: 0;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    transition: transform 0.2s ease, box-shadow 0.2s ease;
+                    border-radius: 12px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+                    padding: 24px 20px 18px 20px;
+                    text-align: left;
+                  }
+                  .deploy-card.deploy-yes {
+                    background: #9FC87E;
+                  }
+                  .deploy-card.deploy-no {
+                    background: #FF3F33;
+                  }
+                  .deploy-card h1 {
+                    font-size: 24px;
+                    margin: 0 0 16px;
+                    line-height: 1.3;
+                    color: #FFE6E1;
+                  }
+                  .deploy-message {
+                    font-size: 20px;
+                    font-weight: 600;
+                    margin: 12px 0 8px 0;
+                    color: #232634;
+                  }
+                  .deploy-date {
+                    font-size: 14px;
+                    color: #232634;
+                    margin-bottom: 4px;
+                  }
+                  .deploy-tz {
+                    font-size: 13px;
+                    color: #075B5E;
+                  }
+                  @media (max-width: 600px) {
+                    .deploy-card {
+                      padding: 16px;
+                    }
+                    .deploy-card h1 {
+                      font-size: 20px;
+                    }
+                    .deploy-message {
+                      font-size: 16px;
+                    }
+                  }
+                </style>
+                <h1>Should I deploy today?</h1>
+                <div class="deploy-message">{{ .JSON.String "message" }}</div>
+                <div class="deploy-tz">Timezone: {{ .JSON.String "timezone" }}</div>
+              </div>
